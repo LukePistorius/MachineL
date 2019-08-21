@@ -1,0 +1,127 @@
+---
+title: "Practical Machine learning Assignment"
+author: "Luke Pistorius"
+date: "19/08/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Purpose of Assignment
+
+Predict the Class, we will try 2 different methods Random Forest and Boosting and see what gives the best results.
+
+### Reading the Training, Test data and loading the libraries
+
+Noticed that the file has zeros and a few error messages, I want them all to show as "NA"
+
+```{r}
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(kernlab)
+library(AppliedPredictiveModeling)
+
+training <- read.csv("C:/Users/lukep/Downloads/pml-training.csv", sep = ";", na.strings=c("","NA","#DIV/0!"))
+
+testing <- read.csv("C:/Users/lukep/Downloads/pml-testing.csv", sep = ";", na.strings=c("","NA","#DIV/0!"))
+
+
+
+```
+
+## Understanding the data
+
+The training Data exists out of 19622 rows ad 160 variables, but we notice that:
+
+* first 7 rows is personal information that will not help with finding the class
+
+* some Rows have quite a lot of Na's if there are only a few missing ones we can use k closest neighbours to extrapolate the missing ones. We will first see how many colums are left over if we would remove all compared to having 80% of the values
+
+```{r}
+trainingclean1 <- training[,colSums(is.na(training))==0]
+dim(trainingclean1)
+
+trainingClean2 <- training[,colSums(is.na(training))<nrow(training)*0.8]
+dim(trainingClean2)
+```
+
+We see that it's the same, so we don't need to find any missing values, just need to remove the first 7 columns
+
+``` {r}
+
+trainingClean <- trainingclean1[,-c(1:7)]
+
+testingClean <- testing[,names(trainingClean)[1:52]]
+
+```
+
+### Creating Train set
+
+It's already split in Test and training, but we will split the training set again so we can calculate the out of sample error (test data has no outcomes)
+
+``` {r}
+set.seed(98765)
+
+intrain <- createDataPartition(trainingClean$classe, p=0.7)[[1]]
+
+tr <- trainingClean[intrain,]
+te <- trainingClean[-intrain,]
+
+```
+
+
+### setting Crossvalidation in traincontrol
+
+CrossValidation is done to use the same data multiple times to prevent overfitting and being able to find and accuracy that is closer to the out of sample rate. we doing k = 5 as it's faster as doing it 10 times.
+
+Didn't look at Preprocessing as it could be time consuming and the results seem to have a pretty high accuracy
+
+
+``` {r}
+Control <- trainControl(method = "cv", number = 5 )
+
+```
+
+### Random Forest
+
+``` {r, cache =TRUE}
+modfit <- train(classe ~ . , method = "rf",trControl = Control, data = tr )
+
+PredRF <- predict(modfit, te)
+
+conf <-confusionMatrix(PredRF,te$classe)
+
+conf$table
+
+conf$overall[1]
+
+```
+
+### Boosting
+
+```{r, cache=TRUE}
+modfit_Boost <- train(classe ~ . , method = "gbm",trControl = Control, data = tr )
+
+Pred_boost <- predict(modfit_Boost, te)
+
+conf_boost <-confusionMatrix(Pred_boost,te$classe)
+
+conf_boost$table
+
+conf_boost$overall[1]
+
+```
+
+### Conclusion
+
+Random Forest seems to provide the best results. we will use this for the test items
+
+```{r}
+
+PredResults <- predict(modfit, testingClean)
+
+```
+
